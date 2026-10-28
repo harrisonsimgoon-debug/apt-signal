@@ -139,6 +139,9 @@ def normalize(kind, items, reg_row) -> pd.DataFrame:
 def save(kind, ym, lawd, df):
     p = STORE / "raw" / kind / ym / f"{lawd}.csv.gz"
     p.parent.mkdir(parents=True, exist_ok=True)
+    if df.empty:  # 거래 0건: 빈 파일을 만들지 않는다 (받은 기록은 state.json 에 남는다)
+        p.unlink(missing_ok=True)
+        return
     df.to_csv(p, index=False, compression={"method": "gzip", "mtime": 0})
 
 

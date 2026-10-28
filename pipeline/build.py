@@ -43,7 +43,16 @@ def read_raw(kind, months):
         code_name = {c: "file_" + f"{a}_{b}".replace(" ", "_") for c, a, b in zip(r.code, r.sido, r.sgg)}
     api_cover = {(f.parent.name, code_name.get(f.stem.split(".")[0])) for f in files if not f.name.startswith("file_")}
     files = [f for f in files if not (f.name.startswith("file_") and (f.parent.name, f.name.split(".")[0]) in api_cover)]
-    df = pd.concat([pd.read_csv(f, dtype={"jibun": str, "apt_seq": str, "umd": str}) for f in files], ignore_index=True)
+    frames = []
+    for f in files:
+        try:
+            frames.append(pd.read_csv(f, dtype={"jibun": str, "apt_seq": str, "umd": str}))
+        except pd.errors.EmptyDataError:
+            continue  # 그 달 거래가 0건이라 빈 파일인 경우
+    frames = [d for d in frames if not d.empty and "ymd" in d]
+    if not frames:
+        return pd.DataFrame()
+    df = pd.concat(frames, ignore_index=True)
     df["ymd"] = pd.to_datetime(df.ymd, errors="coerce")
     for c in ("sido", "sgg", "umd", "jibun", "apt"):
         df[c] = df[c].fillna("").astype(str).str.strip()
