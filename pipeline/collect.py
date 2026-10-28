@@ -152,7 +152,7 @@ def months_between(a: str, b: str):
 
 
 def run(mode, start=None, kinds=("sale", "rent")):
-    key = os.environ["DATA_GO_KR_KEY"]
+    key = os.environ["DATA_GO_KR_KEY"].strip()
     budget = Budget(int(os.environ.get("MAX_CALLS", 9000)))
     state_p = STORE / "state.json"
     state = json.loads(state_p.read_text()) if state_p.exists() else {"done": {}}
