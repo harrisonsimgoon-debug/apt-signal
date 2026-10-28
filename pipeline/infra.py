@@ -73,7 +73,7 @@ class Kakao:
 
 
 def run():
-    key = os.environ["KAKAO_REST_KEY"]
+    key = os.environ["KAKAO_REST_KEY"].strip()
     limit = int(os.environ.get("MAX_INFRA", 3000))
     cache_p = STORE / "infra.json"
     cache = json.loads(cache_p.read_text()) if cache_p.exists() else {}
