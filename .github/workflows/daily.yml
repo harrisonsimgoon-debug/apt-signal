@@ -1,1 +1,85 @@
+name: 매일 수집·빌드·배포
 
+on:
+  schedule:
+    - cron: "17 19 * * *"   # 한국 시간 매일 새벽 4시 17분
+  workflow_dispatch:
+    inputs:
+      backfill_from:
+        description: "과거 적재 시작 월 (YYYYMM)"
+        default: "202001"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      DATA_GO_KR_KEY: ${{ secrets.DATA_GO_KR_KEY }}
+      KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 데이터 저장소(data 브랜치) 가져오기
+        run: |
+          REPO="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          if git ls-remote --exit-code --heads "$REPO" data >/dev/null; then
+            git clone --depth 1 --branch data "$REPO" store
+          else
+            mkdir store && git -C store init -b data && git -C store remote add origin "$REPO"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m tests.test_collect
+
+      - name: 최근 3개월 실거래 다시 받기
+        run: python -m pipeline.collect daily
+        env:
+          MAX_CALLS: "4000"
+
+      - name: 과거 데이터 이어 받기 (남은 호출 한도 안에서)
+        run: python -m pipeline.collect backfill ${{ github.event.inputs.backfill_from || '202001' }}
+        env:
+          MAX_CALLS: "5000"
+
+      - name: 정제·점수 계산
+        run: python -m pipeline.build
+
+      - name: 지역 풍경 사진 채우기 (없는 곳만)
+        run: python -m pipeline.media && python -m pipeline.build
+        continue-on-error: true
+
+      - name: 주변 인프라 채우기
+        if: env.KAKAO_REST_KEY != ''
+        run: python -m pipeline.infra && python -m pipeline.build
+        env:
+          MAX_INFRA: "3000"
+
+      - name: 데이터 저장
+        run: |
+          cd store
+          git config user.name "data-bot" && git config user.email "data-bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -q -m "data $(date -u +%F)" && git push -q origin data)
+
+      - run: python -m pipeline.site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
