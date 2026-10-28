@@ -32,7 +32,14 @@ def read_raw(kind, months):
     실거래 자료에는 같은 조건의 거래가 정당하게 여러 건 있을 수 있어(해제 후 재계약 등) 행 단위 중복 제거는 하지 않는다.
     """
     files = sorted((STORE / "raw" / kind).glob("*/*.csv.gz"))
-    yms = sorted({f.parent.name for f in files})[-months:]
+    all_yms = sorted({f.parent.name for f in files})
+    if not all_yms:
+        return pd.DataFrame()
+    # 폴더 개수가 아니라 달력 기준으로 최근 N개월 (과거 자료가 중간에 비어 있어도 오래된 달이 끼어들지 않게)
+    y, m = int(all_yms[-1][:4]), int(all_yms[-1][4:])
+    t = y * 12 + m - 1 - (months - 1)
+    cutoff = f"{t // 12}{t % 12 + 1:02d}"
+    yms = [ym for ym in all_yms if ym >= cutoff]
     files = [f for f in files if f.parent.name in yms]
     if not files:
         return pd.DataFrame()

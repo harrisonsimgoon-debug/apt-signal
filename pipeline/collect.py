@@ -166,7 +166,8 @@ def run(mode, start=None, kinds=("sale", "rent")):
         recent = list(months_between(f"{(today.replace(day=1) - dt.timedelta(days=62)):%Y%m}", this_ym))
         jobs = [(k, ym, r) for ym in recent for k in kinds for r in regs.itertuples()]
     else:
-        jobs = [(k, ym, r) for ym in months_between(start or "202001", this_ym) for k in kinds for r in regs.itertuples()
+        # 최근 달부터 거꾸로 받는다: 화면에 필요한 최근 14개월이 먼저 채워지고, 오래된 달은 그 뒤에 이어 받는다
+        jobs = [(k, ym, r) for ym in reversed(list(months_between(start or "202001", this_ym))) for k in kinds for r in regs.itertuples()
                 if f"{k}/{ym}/{r.code}" not in state["done"]]
     print(f"{mode}: 작업 {len(jobs):,}건, 호출 한도 {budget.left:,}")
     n = 0
