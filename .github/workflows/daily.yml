@@ -58,6 +58,15 @@ jobs:
         env:
           MAX_CALLS: "5000"
 
+      - name: 수집 자료 먼저 저장 (뒤 단계가 실패해도 남도록)
+        if: always()
+        run: |
+          cd store 2>/dev/null || exit 0
+          find raw -name "*.csv.gz" -size -60c -delete 2>/dev/null || true
+          git config user.name "data-bot" && git config user.email "data-bot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || (git commit -q -m "raw $(date -u +%F)" && git push -q origin data)
+
       - name: 정제·점수 계산
         run: python -m pipeline.build
 
@@ -72,8 +81,9 @@ jobs:
           MAX_INFRA: "3000"
 
       - name: 데이터 저장
+        if: always()
         run: |
-          cd store
+          cd store 2>/dev/null || exit 0
           git config user.name "data-bot" && git config user.email "data-bot@users.noreply.github.com"
           git add -A
           git diff --cached --quiet || (git commit -q -m "data $(date -u +%F)" && git push -q origin data)
