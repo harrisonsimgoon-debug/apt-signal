@@ -1,0 +1,95 @@
+<title>우리집 AI시세 {{REGION_LABEL}}</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="{{REGION_LABEL}} 아파트 실거래로 계산한 단지별 AI 시세 신호, 호가 판단, 브랜드 순위, 주변 생활 인프라">
+<script>window.REGION = {{REGION_JSON}};</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="account.css">
+
+<aside class="adtop" id="ad-top" aria-label="광고" hidden></aside>
+
+<header class="bar">
+  <div class="bar-in">
+    <a class="brand" href="index.html" aria-label="우리집 AI시세 {{REGION_LABEL}}, 지역 선택으로">우리집 <b>AI시세</b> <strong class="rg">{{REGION_LABEL}}</strong></a>
+    <div class="search">
+      <input id="q" type="search" placeholder="아파트 이름이나 동네 검색" autocomplete="off" aria-label="아파트 검색">
+      <ul class="sug" id="sug" hidden></ul>
+    </div>
+    <span class="asof" id="asof">불러오는 중</span>
+    <div class="account-slot" id="account-slot"></div>
+  </div>
+</header>
+
+<div class="app" id="app">
+  <!-- 지역 탐색 -->
+  <section class="pane pane-region" id="pane-region" aria-label="지역 탐색">
+    <div class="card">
+      <div class="rowhead"><h2 id="map-h">전국 흐름</h2><button class="link" id="map-back" hidden>전국 보기</button></div>
+      <p class="hint">최근 3개월 실거래가 변화 · 크기는 거래량</p>
+      <div id="map" role="group" aria-label="지역별 실거래가 흐름"></div>
+      <div class="key"><span><i class="k-up"></i>1% 넘게 오름</span><span><i class="k-flat"></i>보합</span><span><i class="k-down"></i>1% 넘게 내림</span></div>
+      <p class="credit" id="map-credit"></p>
+    </div>
+    <div class="ad-slot" id="ad-region" aria-label="광고"></div>
+    <div class="card">
+      <h2 id="list-h">지역을 고르면 단지 목록이 나와요</h2>
+      <div class="sortbar" id="sortbar" hidden>
+        <button data-s="score" aria-pressed="true">점수 높은 순</button><button data-s="n" aria-pressed="false">거래 많은 순</button>
+      </div>
+      <ol class="list" id="list"></ol>
+    </div>
+  </section>
+
+  <!-- 단지 분석 -->
+  <section class="pane pane-main" id="pane-main" aria-label="단지 분석">
+    <div class="card" id="result"><p class="hint">단지를 불러오는 중이에요.</p></div>
+    <div class="ad-slot" id="ad-agent" aria-label="광고: 매물 문의"></div>
+    <div class="card card-why"><h2>이렇게 판단했어요</h2><ul class="why" id="why"></ul></div>
+    <div class="card trend card-trend"><h2 id="trend-h">최근 1년 실거래가 흐름</h2><div id="trend"></div></div>
+  </section>
+
+  <!-- 호가 · 인프라 -->
+  <section class="pane pane-side" id="pane-side" aria-label="가격 판단과 생활 인프라">
+    <div class="card" id="ask">
+      <h2>이 가격에 사도 될까요?</h2>
+      <div class="ask-row"><label for="askv" id="ask-label"></label><div class="ask-in"><input id="askv" type="number" inputmode="decimal" step="0.1" min="0.1"><span>억</span></div></div>
+      <div id="ask-out"></div>
+    </div>
+    <div class="card" id="infra"></div>
+    <div class="ad-slot" id="ad-side" aria-label="광고"></div>
+  </section>
+</div>
+
+<section class="brands-sec" id="brands" aria-labelledby="brands-h">
+  <div class="card">
+    <div class="brands-head">
+      <div><h2 id="brands-h" class="brands-title">{{REGION_LABEL}} 아파트 브랜드 순위</h2>
+      <p class="hint" id="brands-sub">우리집 AI시세 종합지수 기준</p></div>
+      <div class="chips" id="brand-sort" role="group" aria-label="정렬 기준">
+        <button data-k="index" aria-pressed="true">종합지수</button><button data-k="premium" aria-pressed="false">가격 프리미엄</button><button data-k="score" aria-pressed="false">AI 점수</button><button data-k="trades" aria-pressed="false">거래량</button>
+      </div>
+    </div>
+    <ol class="brand-list" id="brand-list"></ol>
+    <p class="note" id="brands-note"></p>
+  </div>
+</section>
+
+<footer class="foot">
+  <p><b>분석 방법</b> 국토교통부 아파트 매매·전월세 실거래(해제·이상 거래 제외)로 지역 실거래가 흐름, 전세가율, 단지 거래량 변화를 계산합니다. 점수는 같은 시도의 다른 아파트와 비교한 상대 점수이며 시장 전체 방향은 판단하지 않습니다. 가격을 보장하지 않으며, 투자 결정은 본인의 판단으로 해주세요.</p>
+  <p id="foot-val"></p>
+</footer>
+
+<nav class="tabs" aria-label="화면 전환">
+  <button data-tab="main" aria-pressed="true">단지 분석</button>
+  <button data-tab="region" aria-pressed="false">지역 지도</button>
+  <button data-tab="brands" aria-pressed="false">브랜드 순위</button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="config.js"></script>
+<script src="geo.js"></script>
+<script src="backend.js"></script>
+<script src="account.js"></script>
+<script src="ads.js"></script>
+<script src="media.js"></script>
+<script src="app.js"></script>

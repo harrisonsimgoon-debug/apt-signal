@@ -1,0 +1,12 @@
+{
+  "_설명": "지역 페이지 목록. 새 지역을 열려면 status 를 live 로 바꾸고 sidos 에 실거래 자료의 시도 이름을 그대로 적는다. slug 는 페이지 주소(slug.html)가 된다.",
+  "regions": [
+    {"slug": "jeonnam-gwangju", "label": "전남광주", "status": "live", "sidos": ["전남광주통합특별시"]},
+    {"slug": "seoul", "label": "서울", "status": "soon", "sidos": []},
+    {"slug": "gyeonggi-incheon", "label": "경기·인천", "status": "soon", "sidos": []},
+    {"slug": "busan-ulsan-gyeongnam", "label": "부산·울산·경남", "status": "soon", "sidos": []},
+    {"slug": "daegu-gyeongbuk", "label": "대구·경북", "status": "soon", "sidos": []},
+    {"slug": "chungcheong", "label": "대전·세종·충청", "status": "soon", "sidos": []},
+    {"slug": "gangwon-jeonbuk-jeju", "label": "강원·전북·제주", "status": "soon", "sidos": []}
+  ]
+}
