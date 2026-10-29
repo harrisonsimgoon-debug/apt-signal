@@ -161,6 +161,11 @@ def run(mode, start=None, kinds=("sale", "rent")):
     state = json.loads(state_p.read_text()) if state_p.exists() else {"done": {}}
     today = dt.date.today()
     this_ym = f"{today:%Y%m}"
+    if mode == "daily" and os.environ.get("FORCE_DAILY") != "1":
+        last = state.get("last_daily")
+        if last and dt.datetime.now() - dt.datetime.fromisoformat(last) < dt.timedelta(hours=12):
+            print(f"daily: {last} 에 이미 최근 3개월을 받아서 건너뜁니다 (12시간 안 재실행). 강제로 받으려면 FORCE_DAILY=1")
+            return
     regs = regions(key, budget)
     if mode == "daily":
         recent = list(months_between(f"{(today.replace(day=1) - dt.timedelta(days=62)):%Y%m}", this_ym))
@@ -182,6 +187,8 @@ def run(mode, start=None, kinds=("sale", "rent")):
                 state_p.write_text(json.dumps(state))
     except QuotaExceeded as e:
         print(f"멈춤: {e}. 완료 {n:,}건, 다음 실행에서 이어 받습니다.")
+    if mode == "daily" and n == len(jobs):
+        state["last_daily"] = dt.datetime.now().isoformat(timespec="seconds")
     state_p.write_text(json.dumps(state))
     print(f"완료 {n:,}/{len(jobs):,}")
 
