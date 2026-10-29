@@ -45,8 +45,11 @@ def features(sales: pd.DataFrame, rents: pd.DataFrame | None, L: int) -> pd.Data
     f = f[(f.n1 + f.n2) > 0]
     f["cx_vol_chg"] = np.log((f.n2 / 3 + .5) / (f.n1 / 3 + .5))
     j = _change(_cb_med(s, *M2), _cb_med(s, *M1), cbinfo.sgg)
-    j["k"] = j.index.map(cbinfo.sido) + "|" + j.k
-    rm = _wmedian(j)
+    if j.empty:  # 비교할 이전 3개월 자료가 아직 없으면 시군구 흐름은 비워 두고 나머지로 점수를 낸다
+        rm = pd.Series(dtype=float)
+    else:
+        j["k"] = j.index.map(cbinfo.sido).astype(str) + "|" + j.k.astype(str)
+        rm = _wmedian(j)
     f["reg_mom"] = (f.sido + "|" + f.sgg).map(rm)
     f["reg_n2"] = (f.sido + "|" + f.sgg).map(win(*M2).assign(k=lambda d: d.sido + "|" + d.sgg).groupby("k").size())
     if rents is not None and len(rents):
