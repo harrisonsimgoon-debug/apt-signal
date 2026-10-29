@@ -352,11 +352,23 @@ function fillAds() {
 if (window.Account) window.Account.onChange(() => { adCtxKey = ""; fillAds(); });
 
 // ---------- 검색 ----------
+// 실거래 자료의 단지명은 줄여 쓴 이름이 많다(예: 금호동 '라인'을 사람들은 '금호라인아파트'라고 부름).
+// 그래서 동 이름 앞부분 + 단지명, 시군구 + 단지명처럼 사람들이 부르는 조합과 띄어 쓴 단어 모두로 찾는다.
+const searchNorm = s => String(s || "").replace(/\s+/g, "").replace(/(아파트|APT|apt)$/i, "").toLowerCase();
+const umdStem = u => String(u || "").split(" ").pop().replace(/\d*(동|읍|면|리|가)$/, "");
+function searchHit(e, sidoName, raw) {
+  const t = searchNorm(raw), name = e[2], sgg = e[3], umd = e[4];
+  const cands = [name, umdStem(umd) + name, umd + name, name + umd, sgg + name, sgg + umd + name, sidoName + name];
+  if (cands.some(c => searchNorm(c).includes(t))) return true;
+  const hay = searchNorm(name + sgg + umd + sidoName);
+  const words = String(raw || "").trim().split(/\s+/).map(searchNorm).filter(Boolean);
+  return words.length > 1 && words.every(w => hay.includes(w));
+}
 const qi = $("q"), sug = $("sug");
 qi.addEventListener("input", () => {
-  const t = qi.value.trim().replace(/\s+/g, ""); if (!t) { sug.hidden = true; return; }
+  const t = searchNorm(qi.value); if (!t) { sug.hidden = true; return; }
   const sname = Object.fromEntries(S.idx.sidos.map(s => [s.sid, short(s.sido)]));
-  const hits = S.idx.search.filter(e => (e[2] + e[3] + e[4] + sname[e[0]]).replace(/\s+/g, "").includes(t)).sort((a, b) => b[5] - a[5]).slice(0, 12);
+  const hits = S.idx.search.filter(e => searchHit(e, sname[e[0]], qi.value)).sort((a, b) => b[5] - a[5]).slice(0, 12);
   sug.innerHTML = hits.length ? hits.map((e, i) => `<li><button data-i="${i}"><span>${e[2]}</span><small>${sname[e[0]]} ${e[3]} ${e[4]}</small></button></li>`).join("")
     : `<li class="note" style="padding:8px 10px">검색 결과가 없어요. 실거래 신고 이름이 달라서일 수 있어요. 동 이름이나 브랜드 이름으로도 찾아보세요.</li>`;
   sug.hidden = false;
