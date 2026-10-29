@@ -258,7 +258,13 @@ def main(argv=None):
         mine = {k: v for k, v in allm.items() if v and k.split("|")[0] in reg["sidos"]}
         (out / "media.json").write_text(json.dumps({"region": mine, "complex": {}}, ensure_ascii=False))
         print(f"  {reg['label']} ({reg['slug']}): 단지 {len(fr):,}곳, 브랜드 순위 {len(brands)}개")
-    f.assign(n=f.n1 + f.n2)[["cx_key", "sido", "sgg", "umd", "jibun", "apt", "n"]].to_csv(STORE / "complexes.csv", index=False)
+    # 좌표·인프라 수집 대상: 점수 단지 + 열린 지역의 점수 보류 단지
+    cxs = f.assign(n=f.n1 + f.n2)[["cx_key", "sido", "sgg", "umd", "jibun", "apt", "n"]]
+    if len(hist):
+        live_sidos = {x for r in live for x in r["sidos"]}
+        h = hist[hist.sido.isin(live_sidos) & ~hist.index.isin(set(cxs.cx_key))].reset_index()
+        cxs = pd.concat([cxs, h.assign(n=0)[["cx_key", "sido", "sgg", "umd", "jibun", "apt", "n"]]], ignore_index=True)
+    cxs.to_csv(STORE / "complexes.csv", index=False)
     print(f"완료: 단지 {len(f):,}곳, 지역 페이지 {len(live)}개 → {SITE}")
 
 

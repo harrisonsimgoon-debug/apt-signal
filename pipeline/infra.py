@@ -75,18 +75,24 @@ class Kakao:
 def run():
     key = os.environ["KAKAO_REST_KEY"].strip()
     limit = int(os.environ.get("MAX_INFRA", 3000))
+    # 한 번 실행에 쓰는 시간 상한 (분). 넘으면 저장하고 멈췄다가 다음 실행에서 이어서 채운다
+    deadline = time.time() + float(os.environ.get("MAX_INFRA_MIN", 60)) * 60
+    over = lambda: time.time() > deadline
     cache_p = STORE / "infra.json"
     cache = json.loads(cache_p.read_text()) if cache_p.exists() else {}
     cx = pd.read_csv(STORE / "complexes.csv", dtype=str).fillna("")
     cx["n"] = pd.to_numeric(cx.get("n", 0), errors="coerce").fillna(0)
+    # 화면이 열린 지역(regions.json 의 live) 단지를 먼저 채운다
+    live = {s for r in json.loads(Path("regions.json").read_text())["regions"] if r.get("status") == "live" for s in r.get("sidos", [])}
+    cx["live"] = cx.cx_key.str.split("|").str[0].isin(live)
     cutoff = (dt.date.today() - dt.timedelta(days=REFRESH_DAYS)).isoformat()
     k = Kakao(key)
     # 1단계: 좌표 먼저 (단지당 1~2회). 위치 기반 첫 화면·가까운 광고가 좌표만 있으면 동작한다
-    need_geo = cx[[c not in cache or "lat" not in cache[c] and cache[c].get("geo") != "none" for c in cx.cx_key]].sort_values("n", ascending=False)
-    print(f"좌표 대상 {len(need_geo):,}곳")
+    need_geo = cx[[c not in cache or "lat" not in cache[c] and cache[c].get("geo") != "none" for c in cx.cx_key]].sort_values(["live", "n"], ascending=False)
+    print(f"좌표 대상 {len(need_geo):,}곳 (열린 지역 {int(need_geo.live.sum()):,}곳 먼저)")
     try:
         for i, row in enumerate(need_geo.itertuples(), 1):
-            if k.calls >= limit * 2:
+            if k.calls >= limit * 2 or over():
                 break
             loc = k.locate(row)
             rec = cache.get(row.cx_key, {})
@@ -98,9 +104,11 @@ def run():
             if i % 500 == 0:
                 cache_p.write_text(json.dumps(cache, ensure_ascii=False)); print(f"  좌표 {i:,}곳, 호출 {k.calls:,}")
         # 2단계: 주변 시설 (단지당 6회). 거래 많은 단지부터, 오래된 것은 다시 확인
-        todo = cx[[("lat" in cache.get(c, {})) and cache[c].get("at", "") < cutoff for c in cx.cx_key]].sort_values("n", ascending=False).head(limit)
+        todo = cx[[("lat" in cache.get(c, {})) and cache[c].get("at", "") < cutoff for c in cx.cx_key]].sort_values(["live", "n"], ascending=False).head(limit)
         print(f"주변 시설 대상 {len(todo):,}곳")
         for i, row in enumerate(todo.itertuples(), 1):
+            if over():
+                print(f"  시간 상한 도달: 시설 {i - 1:,}곳에서 멈춤 (다음 실행에서 이어서)"); break
             rec = cache[row.cx_key]
             rec.update(k.around(rec["lat"], rec["lng"]), at=dt.date.today().isoformat())
             if i % 200 == 0:
