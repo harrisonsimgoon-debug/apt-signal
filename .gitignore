@@ -6,3 +6,4 @@ site/
 site_geo/
 .DS_Store
 node_modules/
+shots/
