@@ -49,7 +49,7 @@ def pick(items):
 
 
 def run():
-    key = os.environ["DATA_GO_KR_KEY"]
+    key = os.environ["DATA_GO_KR_KEY"].strip()
     p = STORE / "media.json"
     media = json.loads(p.read_text()) if p.exists() else {"region": {}}
     cx = pd.read_csv(STORE / "complexes.csv", dtype=str)
