@@ -254,3 +254,5 @@ ol.brand-list{list-style:none;margin:8px 0 0;padding:0}
 .news-list a:hover b{text-decoration:underline}
 .news-list b{display:block;font-weight:500;line-height:1.45}
 .news-list small{color:var(--sub);font-size:12px}
+
+.age-chip{margin:-6px 0 12px;font-size:12px;color:var(--sub);border-left:3px solid var(--region);padding:2px 0 2px 8px}
