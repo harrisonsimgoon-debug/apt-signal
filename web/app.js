@@ -32,7 +32,7 @@ const view = c => {
 function bandBar(c) {
   if (!c.bands) return "";
   return `<div class="bandbar" role="group" aria-label="평형 고르기">${c.bands.map((b, i) =>
-    `<button type="button" data-band="${i}" aria-pressed="${i === (S.bandIdx || 0)}">전용 ${b.area}㎡<small>${b.n}건</small></button>`).join("")}</div>`;
+    `<button type="button" data-band="${i}" aria-pressed="${i === (S.bandIdx || 0)}">전용 ${b.area}㎡<small>${i === S.cur.band_main ? "주력 · " : ""}${b.n}건</small></button>`).join("")}</div>`;
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-band]"); if (!b || !S.cur) return;
@@ -43,7 +43,7 @@ document.addEventListener("click", e => {
 async function openCx(sid, id, opts = {}) {
   const f = await sidoFile(sid), c = f.byId.get(id);
   if (!c) return;
-  S.cur = c; S.sido = f; S.sgg = c.sgg; S.bandIdx = 0;
+  S.cur = c; S.sido = f; S.sgg = c.sgg; S.bandIdx = c.band_main || 0;
   S.pick = opts.pick || null;            // 첫 화면 자동 선택 이유 (사용자가 고르면 지움)
   if (!opts.auto) S.touched = true;
   if (S.mapSid !== null || opts.zoom) S.mapSid = sid;

@@ -163,7 +163,7 @@ def main(argv=None):
                 t = groups[cx]; b = int(mb[cx]); tb = t[t.band == b]
                 # 평형별 보기: 최근 12개월에 거래가 있는 모든 평형 (주력 평형이 먼저)
                 band_rows = []
-                for bb, tbb in sorted(t.groupby("band"), key=lambda kv: (kv[0] != b, -len(kv[1]))):
+                for bb, tbb in sorted(t.groupby("band"), key=lambda kv: kv[0]):  # 작은 평형부터
                     rb = tbb[tbb.m > L - 12]
                     if rb.empty:
                         continue
@@ -203,6 +203,7 @@ def main(argv=None):
                     "infra": {k: v for k, v in inf.items() if k not in ("at", "lat", "lng")} or None,
                     "lat": inf.get("lat"), "lng": inf.get("lng"),
                     "bands": band_rows if len(band_rows) > 1 else None,
+                    "band_main": next((i for i, x in enumerate(band_rows) if x["band"] == BAND_LABELS[b]), 0),
                 })
                 # 검색 색인: [시도ID, 단지ID, 이름, 시군구, 읍면동, 6개월 거래, 점수, 위도, 경도, 고정키] — 위치 기반 첫 화면에도 쓴다
                 search.append([sid(sido), int(cx), r.apt, r.sgg, r.umd, int(r.n1 + r.n2), int(r.score), inf.get("lat"), inf.get("lng"), rows[-1]["key"]])
