@@ -1,12 +1,75 @@
 {
   "_설명": "지역 페이지 목록. 새 지역을 열려면 status 를 live 로 바꾸고 sidos 에 실거래 자료의 시도 이름을 그대로 적는다. slug 는 페이지 주소(slug.html)가 된다.",
   "regions": [
-    {"slug": "jeonnam-gwangju", "label": "전남광주", "status": "live", "sidos": ["전남광주통합특별시"]},
-    {"slug": "seoul", "label": "서울", "status": "soon", "sidos": []},
-    {"slug": "gyeonggi-incheon", "label": "경기·인천", "status": "soon", "sidos": []},
-    {"slug": "busan-ulsan-gyeongnam", "label": "부산·울산·경남", "status": "soon", "sidos": []},
-    {"slug": "daegu-gyeongbuk", "label": "대구·경북", "status": "soon", "sidos": []},
-    {"slug": "chungcheong", "label": "대전·세종·충청", "status": "soon", "sidos": []},
-    {"slug": "gangwon-jeonbuk-jeju", "label": "강원·전북·제주", "status": "soon", "sidos": []}
-  ]
+    {
+      "slug": "jeonnam-gwangju",
+      "label": "전남광주",
+      "status": "live",
+      "sidos": [
+        "전남광주통합특별시"
+      ],
+      "news": {
+        "queries": [
+          "광주 아파트",
+          "전남 아파트",
+          "광주 부동산",
+          "전남 부동산",
+          "전남광주 부동산"
+        ],
+        "must": [
+          "광주",
+          "전남",
+          "목포",
+          "여수",
+          "순천",
+          "나주",
+          "광양",
+          "무안"
+        ],
+        "exclude": [
+          "경기 광주",
+          "경기도 광주",
+          "광주시(경기)",
+          "경기광주"
+        ]
+      }
+    },
+    {
+      "slug": "seoul",
+      "label": "서울",
+      "status": "soon",
+      "sidos": []
+    },
+    {
+      "slug": "gyeonggi-incheon",
+      "label": "경기·인천",
+      "status": "soon",
+      "sidos": []
+    },
+    {
+      "slug": "busan-ulsan-gyeongnam",
+      "label": "부산·울산·경남",
+      "status": "soon",
+      "sidos": []
+    },
+    {
+      "slug": "daegu-gyeongbuk",
+      "label": "대구·경북",
+      "status": "soon",
+      "sidos": []
+    },
+    {
+      "slug": "chungcheong",
+      "label": "대전·세종·충청",
+      "status": "soon",
+      "sidos": []
+    },
+    {
+      "slug": "gangwon-jeonbuk-jeju",
+      "label": "강원·전북·제주",
+      "status": "soon",
+      "sidos": []
+    }
+  ],
+  "_설명_news": "news: 지역 부동산 뉴스(네이버 뉴스 검색 API). queries 로 찾고, 제목에 must 중 하나가 있어야 하며 exclude 가 있으면 뺀다."
 }

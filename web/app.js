@@ -420,6 +420,25 @@ qi.addEventListener("input", () => {
 });
 document.addEventListener("click", e => { if (!e.target.closest(".search")) sug.hidden = true; });
 
+// ---------- 지역 부동산 뉴스 ----------
+// news 브랜치의 news/{지역}.json (pipeline/news.py, 네이버 뉴스 검색 API). 제목·언론사·시각만 보여주고 기사 본문은 언론사 사이트로 연결한다.
+function ago(iso) {
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  return m < 60 ? `${Math.max(m, 1)}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`;
+}
+async function renderNews() {
+  const base = (window.APP_CONFIG || {}).newsBase, card = $("news");
+  $("news-h").textContent = `${RG.label} 부동산 뉴스`;
+  if (!base) return;
+  let d = null;
+  try { const r = await fetch(`${base}news/${RG.slug}.json`, { cache: "no-store" }); if (r.ok) d = await r.json(); } catch (e) {}
+  const items = (d && d.items || []).filter(x => /^https:\/\//.test(x.link)).slice(0, 8);
+  card.hidden = false;
+  if (!items.length) { $("news-list").innerHTML = `<li class="note" style="padding:8px 0">뉴스를 불러오는 중이거나 아직 연결 전이에요.</li>`; return; }
+  $("news-list").innerHTML = items.map(x => `<li><a href="${esc(x.link)}" target="_blank" rel="noopener"><b>${esc(x.title)}</b><small>${esc(x.press || "")}${x.press ? " · " : ""}${ago(x.at)}</small></a></li>`).join("");
+  if (d.updated) $("news-note").textContent = `출처: 네이버 뉴스 검색 · ${ago(d.updated)} 갱신 · 제목을 누르면 언론사 기사로 이동해요`;
+}
+
 // ---------- 탭(휴대폰) ----------
 function setTab(t) {
   document.body.dataset.tab = t;
@@ -443,6 +462,7 @@ new MutationObserver(drawMap).observe(document.documentElement, { attributes: tr
   const m = S.idx.meta;
   $("asof").textContent = `${ym(m.data_to)} 실거래까지 · 단지 ${(m.counts.all || m.counts.complexes).toLocaleString("ko-KR")}곳`;
   renderBrands();
+  renderNews();
   // 사진은 따로 불러와서, 오면 지도와 단지 카드를 다시 그린다
   if (window.Media) window.Media.load(DATA).then(() => { drawMap(); if (S.cur) renderResult(); });
   if (m.validation) $("foot-val").innerHTML = `<b>검증 수준</b> ${m.validation.scope}. ${m.validation.note}`;

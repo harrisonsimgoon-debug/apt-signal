@@ -27,6 +27,13 @@
 
 호출량은 매일 갱신에 1,500~2,500회, 2020년부터 과거 적재에 약 4만 회입니다. 과거 적재는 하루 한도 안에서 며칠에 나눠 자동으로 이어 받습니다. 한도에 닿으면 수집기가 멈췄다가 다음 날 이어 받으니, 한도가 부족하면 공공데이터포털에서 운영계정으로 트래픽 증설을 신청하세요.
 
+### 지역 부동산 뉴스 (선택)
+화면 오른쪽 '○○ 부동산 뉴스' 칸은 네이버 뉴스 검색 API로 채워요. 크롤링이 아니라 공식 API라서 이용 약관 안에서 써요. 기사 제목·언론사·시각·원문 링크만 저장하고 본문은 저장하지 않아요.
+1. [네이버 개발자센터](https://developers.naver.com) → Application → 애플리케이션 등록 → 사용 API에서 **검색** 선택, 환경은 **WEB 설정**에 사이트 주소 입력
+2. 발급된 **Client ID**, **Client Secret**을 GitHub **Settings → Secrets and variables → Actions**에 `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET`으로 등록
+3. **Actions → 지역 부동산 뉴스 → Run workflow**. 이후 한국 시간 07~23시에 2시간마다 자동으로 갱신돼요 (news 브랜치)
+4. 지역별 검색어·제외어는 `regions.json`의 `news`에서 바꿔요 (예: 경기 광주 기사 제외)
+
 ## 2. 회원·광고 서버 연결 (Supabase, 약 30분)
 
 1. [Supabase](https://supabase.com)에서 프로젝트를 만듭니다. 서울 리전을 고르세요.

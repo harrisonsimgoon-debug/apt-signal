@@ -8,4 +8,6 @@ window.APP_CONFIG = {
   providers: ["kakao", "google", "email"],
   serviceName: "우리집 AI시세",
   supportEmail: "ad@example.com",
+  // 지역 부동산 뉴스 파일 위치 (news.yml 이 news 브랜치에 2시간마다 올린다). 비우면 뉴스 칸을 숨긴다.
+  newsBase: "https://raw.githubusercontent.com/harrisonsimgoon-debug/apt-signal/news/",
 };
