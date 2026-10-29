@@ -9,7 +9,7 @@ const RG = window.REGION || { slug: "jeonnam-gwangju", label: "전남광주" };
 const DATA = `data/${RG.slug}/`;
 // 지역 페이지 하나가 여러 시도를 묶을 수 있다. 시도가 하나뿐이면 페이지 이름(예: 전남광주)으로 부른다.
 const short = s => (S.idx && S.idx.sidos.length === 1) ? RG.label : s.replace(/(특별자치시|특별자치도|특별시|광역시|도)$/, "");
-const WORD = { up: "오를 신호", flat: "평균", down: "약한 신호" };
+const WORD = { up: "오를 신호", flat: "평균", down: "약한 신호", hold: "점수 보류" };
 const ICON = { up: "▲", down: "▼", flat: "–" };
 const S = { idx: null, files: {}, cur: null, sido: null, mapSid: null, sgg: null, sort: "score" };
 
@@ -23,11 +23,27 @@ async function sidoFile(sid) {
   return S.files[sid];
 }
 
+// ---------- 평형 ----------
+// 단지마다 평형이 여러 개면 c.bands 에 평형별 시세가 있다. 고른 평형의 값으로 시세 흐름·호가 판단을 보여준다.
+const view = c => {
+  const b = c.bands && c.bands[S.bandIdx || 0];
+  return b ? { ...c, area: b.area, band: b.band, series: b.series, adj: b.adj, peak: b.peak, peak_m: b.peak_m, bandN: b.n } : c;
+};
+function bandBar(c) {
+  if (!c.bands) return "";
+  return `<div class="bandbar" role="group" aria-label="평형 고르기">${c.bands.map((b, i) =>
+    `<button type="button" data-band="${i}" aria-pressed="${i === (S.bandIdx || 0)}">전용 ${b.area}㎡<small>${b.n}건</small></button>`).join("")}</div>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-band]"); if (!b || !S.cur) return;
+  S.bandIdx = +b.dataset.band; renderTrend(); askSetup();
+});
+
 // ---------- 단지 열기 ----------
 async function openCx(sid, id, opts = {}) {
   const f = await sidoFile(sid), c = f.byId.get(id);
   if (!c) return;
-  S.cur = c; S.sido = f; S.sgg = c.sgg;
+  S.cur = c; S.sido = f; S.sgg = c.sgg; S.bandIdx = 0;
   S.pick = opts.pick || null;            // 첫 화면 자동 선택 이유 (사용자가 고르면 지움)
   if (!opts.auto) S.touched = true;
   if (S.mapSid !== null || opts.zoom) S.mapSid = sid;
@@ -37,7 +53,22 @@ async function openCx(sid, id, opts = {}) {
   if (opts.toMain) setTab("main");
 }
 
+function renderHold() {
+  const c = S.cur, L = c.last || {};
+  $("result").innerHTML = `
+    ${window.Media ? window.Media.hero(c) : ""}
+    <div class="where">${RG.label} ${c.sgg} ${c.umd}${c.built ? ` · ${c.built}년 준공` : ""}</div>
+    <div class="apt">${c.name}</div>
+    ${brandChip(c)}
+    <div class="verdict v-hold">
+      <div class="ai">AI 시세 신호</div>
+      <div class="say">점수 보류 · 최근 거래가 적어 판단하지 않았어요</div>
+      <p class="note" style="margin:0">근거가 부족한 점수는 내지 않아요. 거래가 다시 생기면 자동으로 점수가 나와요.</p>
+    </div>
+    ${L.price ? `<p class="conf">마지막 실거래 <b>${eok(L.price)}</b> · ${L.ym.replace(".", "년 ")}월${L.area ? ` · 전용 ${L.area}㎡` : ""}</p>` : ""}`;
+}
 function renderResult() {
+  if (S.cur.score == null) return renderHold();
   const c = S.cur, region = short(S.sido.sido), v = S.idx.meta.validation;
   const SAY = { up: `${region} 다른 아파트보다 더 오를 가능성이 높은 편이에요`, flat: `${region} 평균과 비슷하게 움직일 가능성이 커요`, down: `${region} 평균보다 약하게 움직일 가능성이 있어요` };
   const n = c.n1 + c.n2, conf = n >= 8 ? "높음" : n >= 3 ? "보통" : "낮음";
@@ -92,6 +123,10 @@ document.addEventListener("click", e => {
 });
 
 function renderWhy() {
+  if (S.cur.score == null) {
+    $("why").innerHTML = `<li><span class="ic flat">${ICON.flat}</span><div><p>점수 계산 기간(최근 6개월)에 이 단지 매매 거래가 없어요. 지역 흐름만으로 단지 점수를 매기면 틀릴 가능성이 커서 보류했어요.</p><small>근거: 국토교통부 실거래 신고</small></div></li>`;
+    return;
+  }
   const c = S.cur, jq = S.sido.jeonse_q, region = short(S.sido.sido), out = [];
   if (c.reg_mom != null) {
     const v = c.reg_mom;
@@ -114,14 +149,14 @@ function renderWhy() {
 
 // ---------- 시세 흐름 ----------
 function renderTrend() {
-  const c = S.cur, M = S.idx.meta.months, el = $("trend");
-  $("trend-h").textContent = `최근 1년 실거래가 흐름 · 전용 ${c.area}㎡`;
+  const c = view(S.cur), M = S.idx.meta.months, el = $("trend");
+  $("trend-h").textContent = `최근 1년 실거래가 흐름${c.area ? ` · 전용 ${c.area}㎡` : ""}`;
   const pts = c.series.map((v, i) => ({ v, i })).filter(p => p.v != null);
-  if (pts.length < 2) { el.innerHTML = `<p class="note">월별로 그릴 만큼 거래가 많지 않아요.</p>`; return; }
+  if (pts.length < 2) { el.innerHTML = `${bandBar(S.cur)}<p class="note">${c.score == null ? "최근 1년 이 단지 매매 거래가 없어요." : "월별로 그릴 만큼 거래가 많지 않아요."}</p>`; return; }
   const n = c.series.length, w = 640, h = 170, px = 10, py = 18, vs = pts.map(p => p.v), lo = Math.min(...vs) * .97, hi = Math.max(...vs) * 1.03;
   const X = i => px + i * (w - 2 * px) / (n - 1), Y = v => h - py - (v - lo) / (hi - lo) * (h - 2 * py);
   const f = pts[0], l = pts.at(-1), col = l.v >= f.v ? "var(--up)" : "var(--down)", diff = (l.v / f.v - 1) * 100;
-  el.innerHTML = `<p style="margin:0 0 8px">최근 월 중간 거래가 <b>${eok(l.v)}</b> · ${ym(M[f.i])}보다 <b style="color:${col}">${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%</b></p>
+  el.innerHTML = `${bandBar(S.cur)}<p style="margin:0 0 8px">최근 월 중간 거래가 <b>${eok(l.v)}</b> · ${ym(M[f.i])}보다 <b style="color:${col}">${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%</b></p>
     <svg viewBox="0 0 ${w} ${h}" role="img" aria-label="월별 중간 거래가">
       <line x1="${px}" x2="${w - px}" y1="${Y(f.v)}" y2="${Y(f.v)}" stroke="var(--line)" stroke-dasharray="4 4"/>
       <polyline points="${pts.map(p => `${X(p.i).toFixed(1)},${Y(p.v).toFixed(1)}`).join(" ")}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round"/>
@@ -134,13 +169,13 @@ function renderTrend() {
 // ---------- 호가 판단 ----------
 const q = (arr, p) => { const s = [...arr].sort((a, b) => a - b), i = (s.length - 1) * p, lo = Math.floor(i); return s[lo] + (s[Math.ceil(i)] - s[lo]) * (i - lo); };
 function askSetup() {
-  const c = S.cur;
-  $("ask-label").textContent = `전용 ${c.area}㎡ (${c.band}) 매수 고려 가격`;
+  const c = view(S.cur);
+  $("ask-label").textContent = c.area ? `전용 ${c.area}㎡ (${c.band}) 매수 고려 가격` : "매수 고려 가격";
   $("askv").value = c.adj.length ? (Math.round(q(c.adj, .5) / 1000) / 10).toFixed(1) : "";
   askRender();
 }
 function askRender() {
-  const c = S.cur, a = c.adj, ask = parseFloat($("askv").value) * 10000, out = $("ask-out");
+  const c = view(S.cur), a = c.adj, ask = parseFloat($("askv").value) * 10000, out = $("ask-out");
   if (!a.length) { out.innerHTML = `<p class="note">최근 1년 같은 평형 거래가 없어 비교할 수 없어요.</p>`; return; }
   if (!(ask > 0)) { out.innerHTML = `<p class="note">가격을 억 단위로 입력하면 최근 실거래와 비교해 드려요.</p>`; return; }
   const med = q(a, .5), lo = q(a, .25), hi = q(a, .75), pos = ask / med - 1, cheaper = a.filter(v => v < ask).length / a.length, vsPeak = ask / c.peak - 1;
@@ -256,7 +291,7 @@ async function renderList(sid) {
   cx = cx.slice(0, 40);
   $("list-h").textContent = `${short(f.sido)} ${S.sgg} · ${S.sort === "score" ? "점수 높은 단지 (최근 6개월 거래 3건 이상)" : "거래 많은 단지"}`;
   $("sortbar").hidden = false;
-  $("list").innerHTML = cx.length ? cx.map(c => `<li><button data-id="${c.id}" ${S.cur && S.cur.id === c.id && S.sido.sid === sid ? 'aria-current="true"' : ""}><span>${c.name} <small>${c.umd}${c.built ? ` · ${c.built}년` : ""} · 거래 ${c.n1 + c.n2}건</small></span><span class="pill ${c.lv}">${WORD[c.lv]} ${c.score}</span></button></li>`).join("")
+  $("list").innerHTML = cx.length ? cx.map(c => `<li><button data-id="${c.id}" ${S.cur && S.cur.id === c.id && S.sido.sid === sid ? 'aria-current="true"' : ""}><span>${c.name} <small>${c.umd}${c.built ? ` · ${c.built}년` : ""} · 거래 ${c.n1 + c.n2}건</small></span><span class="pill ${c.lv}">${c.score == null ? WORD.hold : `${WORD[c.lv]} ${c.score}`}</span></button></li>`).join("")
     : `<li class="note">조건에 맞는 단지가 없어요.</li>`;
   $("list").querySelectorAll("button").forEach(b => b.onclick = () => { openCx(sid, +b.dataset.id, { toMain: true }); window.scrollTo({ top: 0 }); });
   // 목록 4번째 줄에 추천 광고
@@ -323,7 +358,7 @@ qi.addEventListener("input", () => {
   const sname = Object.fromEntries(S.idx.sidos.map(s => [s.sid, short(s.sido)]));
   const hits = S.idx.search.filter(e => (e[2] + e[3] + e[4] + sname[e[0]]).replace(/\s+/g, "").includes(t)).sort((a, b) => b[5] - a[5]).slice(0, 12);
   sug.innerHTML = hits.length ? hits.map((e, i) => `<li><button data-i="${i}"><span>${e[2]}</span><small>${sname[e[0]]} ${e[3]} ${e[4]}</small></button></li>`).join("")
-    : `<li class="note" style="padding:8px 10px">검색 결과가 없어요. 최근 6개월 거래가 있는 단지만 보여드려요.</li>`;
+    : `<li class="note" style="padding:8px 10px">검색 결과가 없어요. 실거래 신고 이름이 달라서일 수 있어요. 동 이름이나 브랜드 이름으로도 찾아보세요.</li>`;
   sug.hidden = false;
   sug.querySelectorAll("button").forEach(b => b.onclick = () => { const e = hits[+b.dataset.i]; openCx(e[0], e[1], { toMain: true }); sug.hidden = true; qi.value = ""; qi.blur(); });
 });
