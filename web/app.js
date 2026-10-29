@@ -57,6 +57,12 @@ async function openCx(sid, id, opts = {}) {
   if (opts.toMain) setTab("main");
 }
 
+// 준공 30년이 지난 단지: 재건축을 검토할 수 있는 연한이 됐다는 사실만 알린다 (재건축 확정 아님)
+function ageChip(c) {
+  if (!c.built) return "";
+  const y = new Date().getFullYear() - c.built;
+  return y >= 30 ? `<p class="age-chip">준공 ${y}년 · 재건축 검토 연한(30년)이 지났어요. 실제 재건축은 진단·조합 등 절차에 따라 달라요.</p>` : "";
+}
 function renderHold() {
   const c = S.cur, hb = c.bands && c.bands[S.bandIdx || 0];
   const L = hb ? { ...hb.last, area: hb.area } : (c.last || {});
@@ -65,6 +71,7 @@ function renderHold() {
     <div class="where">${RG.label} ${c.sgg} ${c.umd}${c.built ? ` · ${c.built}년 준공` : ""}</div>
     <div class="apt">${c.name}</div>
     ${brandChip(c)}
+    ${ageChip(c)}
     <div class="verdict v-hold">
       <div class="ai">AI 시세 신호</div>
       <div class="say">점수 보류 · 최근 거래가 적어 판단하지 않았어요</div>
@@ -84,6 +91,7 @@ function renderResult() {
     <div class="where">${RG.label} ${c.sgg} ${c.umd}${c.built ? ` · ${c.built}년 준공` : ""}</div>
     <div class="apt">${c.name}</div>
     ${brandChip(c)}
+    ${ageChip(c)}
     <div class="verdict v-${c.lv}">
       <div class="ai">AI 시세 신호 · 앞으로 4개월 안팎</div>
       <div class="say">${SAY[c.lv]}</div>
