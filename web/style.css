@@ -46,7 +46,7 @@ button{font:inherit;color:inherit}
 @media (max-width:759px){
   /* 휴대폰: 결론 → 호가 → 근거 → 인프라 → 흐름 순으로 섞어 보여준다 */
   .pane-main,.pane-side{display:contents}
-  #result{order:1}#near-card{order:1}#ad-agent{order:2}#ask{order:3}.card-why{order:4}#ad-side{order:5}#infra{order:6}.card-trend{order:7}
+  #result{order:1}#near-card{order:1}#ad-agent{order:2}#ask{order:3}.card-why{order:4}#ad-side{order:5}#infra{order:6}#news{order:6}.card-trend{order:7}
 }
 .app.show-region .pane-region{display:flex}
 .app.show-region .pane-main,.app.show-region .pane-side{display:none}
@@ -246,3 +246,11 @@ ol.brand-list{list-style:none;margin:8px 0 0;padding:0}
 .card-near h2{margin-bottom:2px}
 .card-near .note{margin:0 0 8px}
 .bandnote{margin:-4px 0 10px;font-size:12px}
+
+/* 지역 부동산 뉴스 */
+.news-list{list-style:none;margin:6px 0 8px;padding:0}
+.news-list li+li{border-top:1px solid var(--line)}
+.news-list a{display:block;padding:10px 0;color:var(--ink);text-decoration:none}
+.news-list a:hover b{text-decoration:underline}
+.news-list b{display:block;font-weight:500;line-height:1.45}
+.news-list small{color:var(--sub);font-size:12px}

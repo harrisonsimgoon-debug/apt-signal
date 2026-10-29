@@ -72,10 +72,8 @@ async function box(slot, host, ctx) {
   host.innerHTML = `<a class="adbox t-${esc(a.theme || "teal")} ${a.image_url ? "has-img" : ""}" ${linkAttrs(a)} aria-label="광고: ${esc(a.title)}">
     ${a.image_url ? `<span class="adbox-img" ${bg(a)}></span>` : ""}
     <span class="adbox-txt">${a._near ? `<em class="adbox-near">${esc(a._near)}</em>` : ""}<b>${esc(a.title)}</b>${a.body ? `<span>${esc(a.body)}</span>` : ""}<small>${esc(a.advertiser_name)}${a.loc_label ? ` · ${esc(a.loc_label)}` : ""}</small></span>
-    ${a.cta ? `<span class="adbox-cta">${esc(a.cta)}</span>` : ""}${label}</a>
-    ${a.phone ? `<a class="adbox-tel" href="tel:${esc(a.phone)}" data-call="1">분양 상담 ${esc(a.phone)}</a>` : ""}`;
+    ${a.cta ? `<span class="adbox-cta">${esc(a.cta)}</span>` : ""}${label}</a>`;
   const el = host.firstChild; bind(el, a); watch(el, a);
-  const tel = host.querySelector("[data-call]"); if (tel) tel.addEventListener("click", () => log(a, "call"));
 }
 
 // ---------- 매물 문의 (공인중개사 전용) ----------

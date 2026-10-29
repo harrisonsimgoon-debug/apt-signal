@@ -1,0 +1,41 @@
+name: 지역 부동산 뉴스
+
+on:
+  schedule:
+    - cron: "11 22-23,0-14/2 * * *"   # 한국 시간 07시~23시, 2시간마다
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: news
+  cancel-in-progress: true
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONUNBUFFERED: "1"
+      NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+      NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - run: python -m tests.test_news
+      - name: 뉴스 모으기
+        run: python -m pipeline.news
+        env:
+          NEWS_DIR: out/news
+      - name: news 브랜치에 올리기 (화면이 바로 읽음)
+        run: |
+          [ -d out/news ] && [ "$(ls -A out/news)" ] || { echo "뉴스 없음 (키 미설정)"; exit 0; }
+          cd out
+          git init -q -b news
+          git config user.name "news-bot" && git config user.email "news-bot@users.noreply.github.com"
+          git add -A && git commit -q -m "news $(date -u +%FT%H:%M)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" news
