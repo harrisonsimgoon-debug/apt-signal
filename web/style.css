@@ -46,7 +46,7 @@ button{font:inherit;color:inherit}
 @media (max-width:759px){
   /* 휴대폰: 결론 → 호가 → 근거 → 인프라 → 흐름 순으로 섞어 보여준다 */
   .pane-main,.pane-side{display:contents}
-  #result{order:1}#ad-agent{order:2}#ask{order:3}.card-why{order:4}#ad-side{order:5}#infra{order:6}.card-trend{order:7}
+  #result{order:1}#near-card{order:1}#ad-agent{order:2}#ask{order:3}.card-why{order:4}#ad-side{order:5}#infra{order:6}.card-trend{order:7}
 }
 .app.show-region .pane-region{display:flex}
 .app.show-region .pane-main,.app.show-region .pane-side{display:none}
@@ -243,3 +243,6 @@ ol.brand-list{list-style:none;margin:8px 0 0;padding:0}
 .verdict.v-hold{background:var(--soft)}
 .verdict.v-hold .say{color:var(--ink)}
 .pill.hold{background:var(--soft);color:var(--sub)}
+.card-near h2{margin-bottom:2px}
+.card-near .note{margin:0 0 8px}
+.bandnote{margin:-4px 0 10px;font-size:12px}

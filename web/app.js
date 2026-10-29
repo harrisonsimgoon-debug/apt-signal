@@ -27,16 +27,19 @@ async function sidoFile(sid) {
 // 단지마다 평형이 여러 개면 c.bands 에 평형별 시세가 있다. 고른 평형의 값으로 시세 흐름·호가 판단을 보여준다.
 const view = c => {
   const b = c.bands && c.bands[S.bandIdx || 0];
-  return b ? { ...c, area: b.area, band: b.band, series: b.series, adj: b.adj, peak: b.peak, peak_m: b.peak_m, bandN: b.n } : c;
+  return b && b.series ? { ...c, area: b.area, band: b.band, series: b.series, adj: b.adj, peak: b.peak, peak_m: b.peak_m, bandN: b.n } : c;
 };
+// 평형(공급면적 기준 '○평형')은 자료에 없어 전용면적으로 어림한다 (전용 84㎡ ≈ 34평형). 단지마다 다를 수 있어 '약'을 붙인다.
+const pyeong = area => Math.round(area * 1.33 / 3.3058);
 function bandBar(c) {
-  if (!c.bands) return "";
+  if (!c.bands || !c.bands.length) return "";
   return `<div class="bandbar" role="group" aria-label="평형 고르기">${c.bands.map((b, i) =>
-    `<button type="button" data-band="${i}" aria-pressed="${i === (S.bandIdx || 0)}">전용 ${b.area}㎡<small>${i === S.cur.band_main ? "주력 · " : ""}${b.n}건</small></button>`).join("")}</div>`;
+    `<button type="button" data-band="${i}" aria-pressed="${i === (S.bandIdx || 0)}">약 ${pyeong(b.area)}평형<small>전용 ${b.area}㎡ · ${i === c.band_main ? "주력 · " : ""}${c.score == null ? "누적 " : "1년 "}${b.n}건</small></button>`).join("")}</div>
+    <p class="note bandnote">평형은 전용면적으로 어림한 값이라 단지마다 1~2평 다를 수 있어요.</p>`;
 }
 document.addEventListener("click", e => {
   const b = e.target.closest("[data-band]"); if (!b || !S.cur) return;
-  S.bandIdx = +b.dataset.band; renderTrend(); askSetup();
+  S.bandIdx = +b.dataset.band; if (S.cur.score == null) renderResult(); renderTrend(); askSetup();
 });
 
 // ---------- 단지 열기 ----------
@@ -44,17 +47,19 @@ async function openCx(sid, id, opts = {}) {
   const f = await sidoFile(sid), c = f.byId.get(id);
   if (!c) return;
   S.cur = c; S.sido = f; S.sgg = c.sgg; S.bandIdx = c.band_main || 0;
+  if (!opts.keepBase) S.nearBase = { sgg: c.sgg, umd: c.umd };
   S.pick = opts.pick || null;            // 첫 화면 자동 선택 이유 (사용자가 고르면 지움)
   if (!opts.auto) S.touched = true;
   if (S.mapSid !== null || opts.zoom) S.mapSid = sid;
   try { history.replaceState(null, "", `#c-${sid}-${id}`); } catch (e) {}
-  renderResult(); renderWhy(); renderTrend(); askSetup(); renderInfra(); drawMap(); renderList();
+  renderResult(); renderNear(); renderWhy(); renderTrend(); askSetup(); renderInfra(); drawMap(); renderList();
   fillAds();
   if (opts.toMain) setTab("main");
 }
 
 function renderHold() {
-  const c = S.cur, L = c.last || {};
+  const c = S.cur, hb = c.bands && c.bands[S.bandIdx || 0];
+  const L = hb ? { ...hb.last, area: hb.area } : (c.last || {});
   $("result").innerHTML = `
     ${window.Media ? window.Media.hero(c) : ""}
     <div class="where">${RG.label} ${c.sgg} ${c.umd}${c.built ? ` · ${c.built}년 준공` : ""}</div>
@@ -65,6 +70,7 @@ function renderHold() {
       <div class="say">점수 보류 · 최근 거래가 적어 판단하지 않았어요</div>
       <p class="note" style="margin:0">근거가 부족한 점수는 내지 않아요. 거래가 다시 생기면 자동으로 점수가 나와요.</p>
     </div>
+    ${bandBar(c)}
     ${L.price ? `<p class="conf">마지막 실거래 <b>${eok(L.price)}</b> · ${L.ym.replace(".", "년 ")}월${L.area ? ` · 전용 ${L.area}㎡` : ""}</p>` : ""}`;
 }
 function renderResult() {
@@ -89,6 +95,43 @@ function renderResult() {
     ${v ? `<div class="proof">과거 데이터로 시험해 보니 <b>'오를 신호' 단지의 ${Math.round(v.up_hit * 100)}%</b>가 이후 2% 넘게 올랐어요. 전체 평균은 ${Math.round(v.base * 100)}%였어요.</div>` : ""}`;
 }
 
+// ---------- 주변 단지 목록 (첫 화면) ----------
+// 내 위치가 있고 단지 좌표가 모였으면 가까운 단지, 아니면 기준 단지와 같은 동 → 같은 시군구 단지를 점수 높은 순으로.
+const NEAR_KM = 2.5, NEAR_MAX = 12;
+function renderNear() {
+  const card = $("near-card"), base = S.nearBase;
+  if (!base || !S.idx) { card.hidden = true; return; }
+  const L = S.idx.search.map(e => ({ e, sid: e[0], id: e[1], name: e[2], sgg: e[3], umd: e[4], n6: e[5], score: e[6], lat: e[7], lng: e[8] }));
+  const byScore = (a, b) => (b.score ?? -1) - (a.score ?? -1) || b.n6 - a.n6;
+  let items = [], title, note;
+  const pos = S.userPos, hasXY = x => typeof x.lat === "number" && typeof x.lng === "number";
+  if (pos && L.some(hasXY)) {
+    for (const x of L) if (hasXY(x)) x.km = window.Geo.km(pos.lat, pos.lng, x.lat, x.lng);
+    items = L.filter(x => x.km != null && x.km <= NEAR_KM).sort(byScore).slice(0, NEAR_MAX);
+    title = `내 위치 ${NEAR_KM}km 안 단지`; note = "점수 높은 순이에요. 거래가 적은 단지는 '점수 보류'로 뒤에 보여드려요.";
+  }
+  if (!items.length) {
+    const same = L.filter(x => x.sgg === base.sgg && x.umd === base.umd).sort(byScore);
+    items = same.length >= 5 ? same : same.concat(L.filter(x => x.sgg === base.sgg && x.umd !== base.umd).sort(byScore));
+    items = items.slice(0, NEAR_MAX);
+    title = `${base.sgg} ${base.umd} 주변 단지`;
+    note = pos ? "단지 위치 정보를 모으는 중이라, 지금은 같은 동·구 단지를 점수 높은 순으로 보여드려요."
+      : "같은 동·구 단지를 점수 높은 순으로 보여드려요." + (geoReady() ? "" : " 단지 위치 정보가 모이면 내 위치 기준으로 바뀌어요.");
+  }
+  if (!items.length) { card.hidden = true; return; }
+  $("near-h").textContent = title; $("near-note").textContent = note;
+  $("near").innerHTML = items.map(x => `<li><button data-sid="${x.sid}" data-id="${x.id}" ${S.cur && S.cur.id === x.id ? 'aria-current="true"' : ""}>
+    <span>${esc(x.name)} <small>${esc(x.umd)}${x.km != null ? ` · ${x.km < 1 ? Math.round(x.km * 1000) + "m" : x.km.toFixed(1) + "km"}` : ""} · 최근 거래 ${x.n6}건</small></span>
+    <span class="pill ${x.score == null ? "hold" : x.score >= 60 ? "up" : x.score >= 42 ? "flat" : "down"}">${x.score == null ? WORD.hold : x.score}</span></button></li>`).join("");
+  card.hidden = false;
+}
+$("near").addEventListener("click", e => {
+  const b = e.target.closest("button[data-id]"); if (!b) return;
+  openCx(b.dataset.sid, +b.dataset.id, { keepBase: true });
+  $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
 // ---------- 첫 화면: 위치 기반 단지 ----------
 const geoReady = () => (S.idx.meta.geo_cover || 0) > 0;
 function pickLine() {
@@ -105,7 +148,8 @@ function locate(byUser) {
   if (!geoReady()) { if (byUser) window.Account.toast("단지 위치 정보를 모으는 중이라 아직 내 위치로 찾을 수 없어요"); return; }
   if (!("geolocation" in navigator)) { if (byUser) window.Account.toast("이 브라우저는 위치 확인을 지원하지 않아요"); return; }
   navigator.geolocation.getCurrentPosition(async pos => {
-    if (S.touched && !byUser) return;   // 그 사이 사용자가 다른 단지를 골랐으면 바꾸지 않는다
+    S.userPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (S.touched && !byUser) { renderNear(); return; }   // 그 사이 사용자가 다른 단지를 골랐으면 단지는 그대로, 주변 목록만 갱신
     const p = window.Geo.pickDefault(S.idx.search, { lat: pos.coords.latitude, lng: pos.coords.longitude });
     if (p) await openCx(p.entry.sid, p.entry.id, { auto: true, pick: p });
   }, () => { if (byUser) window.Account.toast("위치를 확인할 수 없어요. 브라우저에서 위치 권한을 허용해 주세요"); },
@@ -152,7 +196,7 @@ function renderTrend() {
   const c = view(S.cur), M = S.idx.meta.months, el = $("trend");
   $("trend-h").textContent = `최근 1년 실거래가 흐름${c.area ? ` · 전용 ${c.area}㎡` : ""}`;
   const pts = c.series.map((v, i) => ({ v, i })).filter(p => p.v != null);
-  if (pts.length < 2) { el.innerHTML = `${bandBar(S.cur)}<p class="note">${c.score == null ? "최근 1년 이 단지 매매 거래가 없어요." : "월별로 그릴 만큼 거래가 많지 않아요."}</p>`; return; }
+  if (pts.length < 2) { el.innerHTML = `${S.cur.score == null ? "" : bandBar(S.cur)}<p class="note">${c.score == null ? "최근 1년 이 단지 매매 거래가 없어요." : "월별로 그릴 만큼 거래가 많지 않아요."}</p>`; return; }
   const n = c.series.length, w = 640, h = 170, px = 10, py = 18, vs = pts.map(p => p.v), lo = Math.min(...vs) * .97, hi = Math.max(...vs) * 1.03;
   const X = i => px + i * (w - 2 * px) / (n - 1), Y = v => h - py - (v - lo) / (hi - lo) * (h - 2 * py);
   const f = pts[0], l = pts.at(-1), col = l.v >= f.v ? "var(--up)" : "var(--down)", diff = (l.v / f.v - 1) * 100;
@@ -397,7 +441,7 @@ new MutationObserver(drawMap).observe(document.documentElement, { attributes: tr
     $("result").innerHTML = `<p class="note">데이터를 불러오지 못했어요. 잠시 뒤 새로고침해 주세요.</p>`; return;
   }
   const m = S.idx.meta;
-  $("asof").textContent = `${ym(m.data_to)} 실거래까지 · 단지 ${m.counts.complexes.toLocaleString("ko-KR")}곳`;
+  $("asof").textContent = `${ym(m.data_to)} 실거래까지 · 단지 ${(m.counts.all || m.counts.complexes).toLocaleString("ko-KR")}곳`;
   renderBrands();
   // 사진은 따로 불러와서, 오면 지도와 단지 카드를 다시 그린다
   if (window.Media) window.Media.load(DATA).then(() => { drawMap(); if (S.cur) renderResult(); });

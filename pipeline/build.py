@@ -99,6 +99,15 @@ def last_trades():
     out["built"] = g.built.median()
     out["maxfl"] = g.floor.max() if "floor" in d else np.nan
     out["n_all"] = g.size()
+    # 평형별 마지막 실거래 (점수 보류 단지도 평형을 골라 볼 수 있게)
+    d = d.dropna(subset=["area"])
+    d["band"] = np.digitize(d.area.astype(float), BANDS[1:-1], right=True)
+    bl = {}
+    for (ck, b), x in d.groupby(["cx_key", "band"]):
+        last = x.iloc[-1]
+        bl.setdefault(ck, []).append({"band": BAND_LABELS[int(b)], "area": round(float(x.area.median()), 1), "n": int(len(x)),
+                                      "last": {"ym": f"{last.ymd:%Y.%m}", "price": int(last.price)}})
+    out["bands"] = pd.Series(bl)
     return out
 
 def last_complete_month(sales, settle_days=20):
@@ -202,7 +211,7 @@ def main(argv=None):
                     "peak_m": f"{tb.loc[tb.price.idxmax()].ymd:%Y.%m}",
                     "infra": {k: v for k, v in inf.items() if k not in ("at", "lat", "lng")} or None,
                     "lat": inf.get("lat"), "lng": inf.get("lng"),
-                    "bands": band_rows if len(band_rows) > 1 else None,
+                    "bands": band_rows or None,
                     "band_main": next((i for i, x in enumerate(band_rows) if x["band"] == BAND_LABELS[b]), 0),
                 })
                 # 검색 색인: [시도ID, 단지ID, 이름, 시군구, 읍면동, 6개월 거래, 점수, 위도, 경도, 고정키] — 위치 기반 첫 화면에도 쓴다
@@ -221,7 +230,9 @@ def main(argv=None):
                     "series": [None] * len(months), "adj": [], "peak": None, "peak_m": None,
                     "last": {"ym": f"{h.ymd:%Y.%m}", "price": int(h.price), "area": None if pd.isna(h.area) else round(float(h.area), 1)},
                     "infra": {k: v for k, v in inf.items() if k not in ("at", "lat", "lng")} or None,
-                    "lat": inf.get("lat"), "lng": inf.get("lng"), "bands": None,
+                    "lat": inf.get("lat"), "lng": inf.get("lng"),
+                    "bands": h.bands if isinstance(h.bands, list) else None,
+                    "band_main": int(np.argmax([x["n"] for x in h.bands])) if isinstance(h.bands, list) and h.bands else 0,
                 })
                 search.append([sid(sido), hid, h.apt, h.sgg, h.umd, 0, None, inf.get("lat"), inf.get("lng"), rows[-1]["key"]])
             (out / "c" / f"{sid(sido)}.json").write_text(json.dumps({"sido": sido, "jeonse_q": jq, "cx": rows}, ensure_ascii=False, separators=(",", ":")))
