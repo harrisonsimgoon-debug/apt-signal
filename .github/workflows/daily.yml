@@ -8,6 +8,10 @@ on:
       backfill_from:
         description: "과거 적재 시작 월 (YYYYMM)"
         default: "202001"
+      quick:
+        description: "수집 없이 지금 있는 자료로 빌드·배포만 (빠름)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -49,11 +53,13 @@ jobs:
       - run: python -m tests.test_collect
 
       - name: 최근 3개월 실거래 다시 받기
+        if: ${{ github.event.inputs.quick != 'true' }}
         run: python -m pipeline.collect daily
         env:
           MAX_CALLS: "4000"
 
       - name: 과거 데이터 이어 받기 (남은 호출 한도 안에서)
+        if: ${{ github.event.inputs.quick != 'true' }}
         run: python -m pipeline.collect backfill ${{ github.event.inputs.backfill_from || '202001' }}
         env:
           MAX_CALLS: "5000"
