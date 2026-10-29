@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .clean import clean_sales, clean_rents, region_index, BAND_LABELS, month_label
+from .clean import clean_sales, clean_rents, region_index, BAND_LABELS, BANDS, month_label
 from .collect import STORE
 from .scoring import features, score
 from .brands import brand_of, ranking
@@ -69,6 +69,38 @@ def read_raw(kind, months):
     return df.dropna(subset=["ymd"])
 
 
+
+def last_trades():
+    """저장된 모든 달의 매매에서 단지별 마지막 실거래 (점수 기간에 거래가 없는 단지도 화면에 보여주기 위해)."""
+    files = sorted((STORE / "raw" / "sale").glob("*/*.csv.gz"))
+    cols = ["sido", "sgg", "umd", "jibun", "apt", "area", "built", "ymd", "price", "cancelled", "floor"]
+    frames = []
+    for f in files:
+        try:
+            d = pd.read_csv(f, dtype={"jibun": str, "umd": str}, usecols=lambda c: c in cols)
+        except (pd.errors.EmptyDataError, ValueError):
+            continue
+        if d.empty or "ymd" not in d:
+            continue
+        if "cancelled" in d:
+            d = d[~d.cancelled.astype(str).str.lower().isin(["true", "1"])]
+        frames.append(d)
+    if not frames:
+        return pd.DataFrame()
+    d = pd.concat(frames, ignore_index=True)
+    for c in ("sido", "sgg", "umd", "jibun", "apt"):
+        d[c] = d[c].fillna("").astype(str).str.strip()
+    d["ymd"] = pd.to_datetime(d.ymd, errors="coerce")
+    d = d.dropna(subset=["ymd", "price"])
+    d["cx_key"] = d.sido.str.cat([d.sgg, d.umd, d.jibun.astype(str), d.apt], sep="|")
+    d = d.sort_values("ymd")
+    g = d.groupby("cx_key")
+    out = g.tail(1).set_index("cx_key")[["sido", "sgg", "umd", "jibun", "apt", "area", "ymd", "price"]]
+    out["built"] = g.built.median()
+    out["maxfl"] = g.floor.max() if "floor" in d else np.nan
+    out["n_all"] = g.size()
+    return out
+
 def last_complete_month(sales, settle_days=20):
     """신고 기한이 30일이라 월말 후 20일이 지난 달까지를 '거의 다 들어온 달'로 본다(그 이후 들어오는 건은 소수)."""
     latest = sales.ymd.max()
@@ -115,6 +147,7 @@ def main(argv=None):
     f["py"] = pd.Series(py)
     f["py_rel"] = np.log(f.py / f.groupby(["sido", "sgg"]).py.transform("median"))
 
+    hist = last_trades()
     live = [r for r in load_regions() if r["status"] == "live"]
     for reg in live:
         out = SITE / reg["slug"]
@@ -128,6 +161,21 @@ def main(argv=None):
             rows = []
             for cx, r in g.iterrows():
                 t = groups[cx]; b = int(mb[cx]); tb = t[t.band == b]
+                # 평형별 보기: 최근 12개월에 거래가 있는 모든 평형 (주력 평형이 먼저)
+                band_rows = []
+                for bb, tbb in sorted(t.groupby("band"), key=lambda kv: kv[0]):  # 작은 평형부터
+                    rb = tbb[tbb.m > L - 12]
+                    if rb.empty:
+                        continue
+                    if np.isnan(now_i := idx.get((f"{r.sido}|{r.sgg}", L), np.nan)):
+                        adj_b = rb.price.values
+                    else:
+                        adj_b = rb.price.values * np.exp(now_i - np.array([idx.get((f"{r.sido}|{r.sgg}", m), now_i) for m in rb.m]))
+                    sb = tbb.groupby("m").price.median().reindex(months)
+                    band_rows.append({"band": BAND_LABELS[int(bb)], "area": round(float(tbb.area.median()), 1), "n": int(len(rb)),
+                                      "series": [None if pd.isna(v) else int(v) for v in sb.values],
+                                      "adj": [int(v) for v in adj_b[-30:]], "peak": int(tbb.price.max()),
+                                      "peak_m": f"{tbb.loc[tbb.price.idxmax()].ymd:%Y.%m}"})
                 area = float(tb.area.median())
                 ser = tb.groupby("m").price.median().reindex(months)
                 rec = tb[tb.m > L - 12]
@@ -154,9 +202,28 @@ def main(argv=None):
                     "peak_m": f"{tb.loc[tb.price.idxmax()].ymd:%Y.%m}",
                     "infra": {k: v for k, v in inf.items() if k not in ("at", "lat", "lng")} or None,
                     "lat": inf.get("lat"), "lng": inf.get("lng"),
+                    "bands": band_rows if len(band_rows) > 1 else None,
+                    "band_main": next((i for i, x in enumerate(band_rows) if x["band"] == BAND_LABELS[b]), 0),
                 })
                 # 검색 색인: [시도ID, 단지ID, 이름, 시군구, 읍면동, 6개월 거래, 점수, 위도, 경도, 고정키] — 위치 기반 첫 화면에도 쓴다
                 search.append([sid(sido), int(cx), r.apt, r.sgg, r.umd, int(r.n1 + r.n2), int(r.score), inf.get("lat"), inf.get("lng"), rows[-1]["key"]])
+            # 점수 기간에 거래가 없는 단지: 점수 없이 '점수 보류'로 (검색·단지 화면에는 나오고 순위·브랜드 지수에는 빠짐)
+            held = hist[(hist.sido == sido) & ~hist.index.isin(set(g.cx_key))] if len(hist) else hist
+            for i, (ck, h) in enumerate(held.iterrows()):
+                inf = infra.get(ck, {})
+                hb = int(np.digitize([h.area], BANDS[1:-1], right=True)[0]) if pd.notna(h.area) else None
+                hid = 1_000_000 + len(rows)
+                rows.append({
+                    "id": hid, "key": hashlib.md5(ck.encode()).hexdigest()[:12], "maxfl": None if pd.isna(h.maxfl) else int(h.maxfl),
+                    "name": h.apt, "sgg": h.sgg, "umd": h.umd, "built": None if pd.isna(h.built) else int(h.built),
+                    "brand": brand_of(h.apt), "score": None, "lv": "hold", "n1": 0, "n2": 0, "py": None, "reg_mom": None, "jeonse": None,
+                    "w": {}, "band": None if hb is None else BAND_LABELS[hb], "area": None if pd.isna(h.area) else round(float(h.area), 1),
+                    "series": [None] * len(months), "adj": [], "peak": None, "peak_m": None,
+                    "last": {"ym": f"{h.ymd:%Y.%m}", "price": int(h.price), "area": None if pd.isna(h.area) else round(float(h.area), 1)},
+                    "infra": {k: v for k, v in inf.items() if k not in ("at", "lat", "lng")} or None,
+                    "lat": inf.get("lat"), "lng": inf.get("lng"), "bands": None,
+                })
+                search.append([sid(sido), hid, h.apt, h.sgg, h.umd, 0, None, inf.get("lat"), inf.get("lng"), rows[-1]["key"]])
             (out / "c" / f"{sid(sido)}.json").write_text(json.dumps({"sido": sido, "jeonse_q": jq, "cx": rows}, ensure_ascii=False, separators=(",", ":")))
             for sgg, h in g.groupby("sgg"):
                 m = h.reg_mom.dropna()
@@ -170,7 +237,7 @@ def main(argv=None):
         brands = ranking(bdf)
         geo = sum(1 for e in search if e[7] is not None)
         meta = {"region": {k: reg[k] for k in ("slug", "label")}, "geo_cover": round(geo / max(len(search), 1) * 100), "data_to": month_label(L), "months": [month_label(m) for m in months],
-                "validation": validation, "counts": {"complexes": int(len(fr)), "trades6": int((fr.n1 + fr.n2).sum())},
+                "validation": validation, "counts": {"complexes": int(len(fr)), "trades6": int((fr.n1 + fr.n2).sum()), "all": len(search)},
                 "brand_cover": round(float(bdf.name.map(brand_of).notna().mean()) * 100)}
         (out / "index.json").write_text(json.dumps({"meta": meta, "sidos": sidos, "regions": regions, "search": search, "brands": brands},
                                                    ensure_ascii=False, separators=(",", ":")))

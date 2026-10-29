@@ -233,3 +233,13 @@ ol.brand-list{list-style:none;margin:8px 0 0;padding:0}
 .credit{font-size:11px;color:var(--sub);margin:6px 0 0}
 .credit:empty{display:none}
 [hidden]{display:none!important}
+
+/* 평형 고르기, 점수 보류 */
+.bandbar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.bandbar button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:4px 11px;cursor:pointer;display:inline-flex;gap:5px;align-items:baseline}
+.bandbar button small{color:var(--sub);font-size:11px}
+.bandbar button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.bandbar button[aria-pressed="true"] small{color:var(--bg);opacity:.75}
+.verdict.v-hold{background:var(--soft)}
+.verdict.v-hold .say{color:var(--ink)}
+.pill.hold{background:var(--soft);color:var(--sub)}
